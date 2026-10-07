@@ -1,0 +1,11 @@
+{
+  "mypc": 1,
+  "id": "street-racer",
+  "name": "Street Racer",
+  "description": "Neon arcade street racing: campaign, quick race, 2-player split screen, 12 cars, 8 tracks",
+  "type": "game",
+  "entry": "index.html",
+  "icon": "icon.svg",
+  "version": "1.1.0",
+  "scores": true
+}
