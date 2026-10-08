@@ -1093,14 +1093,20 @@
         selRow(y, h, r === 0, T('track'), '#cfd6ff', T(KTR[trackIdx]), ok ? '#ffffff' : '#ff9a9a'); y += h + 8;
         selRow(y, h, r === 1, T('laps'), '#cfd6ff', '' + sv.ql, '#ffffff'); y += h + 8;
         ci = mp ? mCar1 : qCar;
-        selRow(y, h, r === 2, mp ? T('p1') : T('car'), mp ? '#ffd23f' : '#cfd6ff', CARS[ci].brand + ' ' + CARS[ci].name, CARS[ci].col); y += h + 8;
-        if (mp) { selRow(y, h, r === 3, T('p2'), '#4de1ff', CARS[mCar2].brand + ' ' + CARS[mCar2].name, CARS[mCar2].col); y += h + 8; }
-        focusBox(250, y, 220, 56, r === startRow); text(T('start'), 360, y + 29, 30, ok ? '#7dff6a' : '#888', 'center');
+        selRow(y, h, r === 2, mp ? T('p1') : T('car'), mp ? '#ffd23f' : '#cfd6ff', CARS[ci].brand + ' ' + CARS[ci].name, CARS[ci].col);
+        if (mp) text(devName(mpDev[0]), 154, y + h - 7, 18, '#ffd23f', 'left', 0);
+        y += h + 8;
+        if (mp) {
+            if (mpDev[1]) { selRow(y, h, r === 3, T('p2'), '#4de1ff', CARS[mCar2].brand + ' ' + CARS[mCar2].name, CARS[mCar2].col); text(devName(mpDev[1]), 154, y + h - 7, 18, '#4de1ff', 'left', 0); }
+            else { focusBox(130, y, 700, h, r === 3); text(T('p2'), 154, y + h / 2, 24, '#4de1ff', 'left', 0); if (((simT * 2) | 0) % 2 === 0) text(T('join2'), W / 2 + 55, y + h / 2, 26, '#ffffff', 'center'); }
+            y += h + 8;
+        }
+        focusBox(250, y, 220, 56, r === startRow); text(T('start'), 360, y + 29, 30, ok && (!mp || mpDev[1]) ? '#7dff6a' : '#888', 'center');
         focusBox(490, y, 220, 56, r === startRow + 1); text(T('back'), 600, y + 29, 30, '#ffffff', 'center');
         y += 70;
         if (!ok) text(T('locked') + ' - ' + T('need').replace('%n', '' + (trackIdx * 6)), W / 2, y, 24, '#ff9a9a', 'center', 0);
         else text(T(mp ? 'mpnote' : 'qnote'), W / 2, y, 22, '#cfd6ff', 'center', 0);
-        if (mp) { drawCarBig(mCar1, 230, 530, 190); drawCarBig(mCar2, 730, 530, 190); } else drawCarBig(qCar, W / 2, 530, 190);
+        if (mp) { drawCarBig(mCar1, 230, 530, 190); if (mpDev[1]) drawCarBig(mCar2, 730, 530, 190); } else drawCarBig(qCar, W / 2, 530, 190);
     }
     function renderGarage() {
         var ci = garCar, car = CARS[ci], own = sv.owned[ci], i, y, d = SR.spr.cars[ci], dw = 330, dh, lv, v, cost, selected = sv.car === ci, pul = 0.5 + 0.5 * Math.sin(simT * 6), locked = totalStars() < car.need;
@@ -1173,7 +1179,7 @@
     function openCareer() { st = S_CAREER; careerSel = 0; refreshLocks(); setupDemo(trackIdx); }
     function changeTrack(d) { trackIdx = (trackIdx + d + NTRACKS) % NTRACKS; refreshLocks(); setupDemo(trackIdx); SR.audio.tick(); }
     function tick() { SR.audio.tick(); }
-    function onMenuInput(a) {
+    function onMenuInput(a, dev) {
         var idx, it, ni;
         if (inputLock > 0) return;
         if (st === S_TITLE) { if (a === 'confirm') { st = S_MAIN; menuSel = 0; tick(); } return; }
@@ -1184,7 +1190,7 @@
                 tick();
                 if (menuSel === 0) openCareer();
                 else if (menuSel === 1) { st = S_QUICK; qRow = 0; trackIdx = sv.qt; qCar = sv.car; setupDemo(trackIdx); }
-                else if (menuSel === 2) { st = S_MP; mRow = 0; trackIdx = sv.qt; mCar1 = sv.car; mCar2 = anyNext(sv.car, 1); setupDemo(trackIdx); }
+                else if (menuSel === 2) { st = S_MP; mRow = 0; mpDev[0] = dev || 'keys'; if (mpDev[1] === mpDev[0]) mpDev[1] = null; trackIdx = sv.qt; mCar1 = sv.car; mCar2 = anyNext(sv.car, 1); setupDemo(trackIdx); }
                 else if (menuSel === 3) { st = S_GARAGE; garRow = 0; garCar = sv.car; toast = ''; toastT = 0; }
                 else st = S_HELP;
             }
@@ -1233,7 +1239,10 @@
             else if (r === 2) { if (mp) mCar1 = anyNext(mCar1, d); else qCar = ownedNext(qCar, d); }
             else if (r === 3 && mp) mCar2 = anyNext(mCar2, d);
         } else if (a === 'confirm') {
-            if (r === startRow) { if (trackUnlocked(trackIdx)) { if (mp) startMP(); else startQuick(); } else SR.audio.crash(0.3); }
+            if (r === startRow) {
+                if (!trackUnlocked(trackIdx) || (mp && !mpDev[1])) SR.audio.crash(0.3);
+                else if (mp) startMP(); else startQuick();
+            }
             else if (r === startRow + 1) toMain();
             return;
         } else return;
@@ -1260,18 +1269,30 @@
     }
 
     var ACTIDX = { left: 0, right: 1, up: 2, down: 3, jump: 4 };
+    // Multiplayer: player 1 is the controller that opened Multiplayer, player 2 joins by pressing OK on
+    // another one ('keys' = TV remote / arrows, 'keys2' = W A S D, 'pad0'..'pad3' = gamepads).
+    // In a 2-player race each car reads only its own controller; any other device is ignored.
+    var mpDev = ['keys', null];
     function playerOf(dev) {
         if (nPl < 2) return 0;
-        return (dev === 'keys2' || dev === 'pad1' || dev === 'pad2' || dev === 'pad3') ? 1 : 0;
+        return dev === mpDev[0] ? 0 : (dev === mpDev[1] ? 1 : -1);
+    }
+    function devName(dev) {
+        if (!dev) return '';
+        if (dev === 'keys') return T('devRemote');
+        if (dev === 'keys2') return 'W A S D';
+        return T('devPad') + ' ' + ((+dev.slice(3) || 0) + 1);
     }
     function clearHeld() { var k, j; for (k = 0; k < 2; k++) for (j = 0; j < 5; j++) pls[k].held[j] = 0; }
     function onInput(action, pressed, repeat, dev) {
-        var k = playerOf(dev), ai = ACTIDX[action], q = pls[k];
-        if (ai !== undefined && !repeat) q.held[ai] = Math.max(0, q.held[ai] + (pressed ? 1 : -1));
+        var k, ai = ACTIDX[action], q;
+        dev = dev || 'keys';
+        k = playerOf(dev); q = k >= 0 ? pls[k] : null;
+        if (q && ai !== undefined && !repeat) q.held[ai] = Math.max(0, q.held[ai] + (pressed ? 1 : -1));
         if (!pressed) return;
         SR.audio.poke();
         if (st === S_RACE || st === S_COUNT) {
-            if (repeat) return;
+            if (repeat || !q) return;
             if ((action === 'jump' || action === 'up') && inputLock <= 0 && !q.auto) {
                 if (st === S_COUNT) { if (cdT > 2.45) q.rocket = true; return; }
                 if (simT - q.lastTap < 0.3 && q.nitro >= 30 && q.perfCd <= 0 && q.perfT <= 0) {
@@ -1281,8 +1302,14 @@
             return;
         }
         if (repeat && (action === 'confirm' || action === 'jump')) return;
+        if (st === S_MP && inputLock <= 0 && dev !== mpDev[0]) {
+            // any other controller: OK joins as player 2, left / right picks player 2's car
+            if (action === 'confirm' || action === 'jump') { if (mpDev[1] !== dev) { mpDev[1] = dev; SR.audio.jingle(true); } }
+            else if (dev === mpDev[1] && (action === 'left' || action === 'right')) { mCar2 = anyNext(mCar2, action === 'left' ? -1 : 1); tick(); }
+            return;
+        }
         if (action === 'jump') return;
-        onMenuInput(action);
+        onMenuInput(action, dev);
     }
 
     /* ---------------- frame ---------------- */
@@ -1383,5 +1410,5 @@
     SR.dbg = { start: function (t, e) { startEvent(t, e); }, quick: function (t) { trackIdx = t; qCar = sv.car; startQuick(); }, mp: function (t) { trackIdx = t; mCar1 = 0; mCar2 = 1; startMP(); },
                setAuto: function (k, cap, nit) { pls[k].auto = true; pls[k].autoCap = cap; pls[k].autoNit = nit; },
                state: function () { return { st: st, dist: cars[0].dist - BASE, speed: cars[0].speed, raceT: raceT, trackLen: trackLen, res: res, place: pls[0].place, td: pls[0].takedowns }; },
-               sv: function () { return sv; }, cars: cars, pls: pls, step: function (n) { for (var i = 0; i < n; i++) update(); }, draw: function () { render(); }, key: function (a) { onInput(a, true, false, 'keys'); onInput(a, false, false, 'keys'); }, finish: finishEvent, setStars: function (n) { var i; for (i = 0; i < NEV; i++) sv.stars[i] = n; } };
+               sv: function () { return sv; }, cars: cars, pls: pls, step: function (n) { for (var i = 0; i < n; i++) update(); }, draw: function () { render(); }, key: function (a, dev) { onInput(a, true, false, dev || 'keys'); onInput(a, false, false, dev || 'keys'); }, hold: function (a, down, dev) { onInput(a, down, false, dev || 'keys'); }, mpDev: mpDev, finish: finishEvent, setStars: function (n) { var i; for (i = 0; i < NEV; i++) sv.stars[i] = n; } };
 })();
